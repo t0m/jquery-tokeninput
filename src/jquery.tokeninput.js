@@ -20,7 +20,7 @@ var DEFAULT_SETTINGS = {
     jsonContainer: null,
     contentType: "json",
 
-	// Prepopulation settings
+  // Prepopulation settings
     prePopulate: null,
     processPrePopulate: false,
 
@@ -51,7 +51,10 @@ var DEFAULT_SETTINGS = {
     idPrefix: "token-input-",
 
     // Keep track if the input is currently in disabled mode
-    disabled: false
+    disabled: false,
+
+    // Set to true if you need to enter new tokens (not only from backend)
+    allowNewItems: false
 };
 
 // Default classes to use when theming
@@ -248,8 +251,8 @@ $.TokenList = function (input, url_or_data, settings) {
                         if(dropdown_item.length) {
                             select_dropdown_item(dropdown_item);
                         }
+                        return false;
                     }
-                    return false;
                     break;
 
                 case KEY.BACKSPACE:
@@ -276,11 +279,21 @@ $.TokenList = function (input, url_or_data, settings) {
                 case KEY.ENTER:
                 case KEY.NUMPAD_ENTER:
                 case KEY.COMMA:
-                  if(selected_dropdown_item) {
+                  if(selected_dropdown_item && $(selected_dropdown_item).data("tokeninput") != undefined) {
                     add_token($(selected_dropdown_item).data("tokeninput"));
                     hidden_input.change();
                     return false;
+                  } else if ($(this).val().length && settings.allowNewItems) {
+                      token_object = {}
+                      token_object[settings.propertyToSearch] = token_object[settings.tokenValue] = $(this).val()
+                      add_token(token_object);
+                      return false;
+                  } else if (event.keyCode !== KEY.TAB) {
+                      // Prevent commas or accidental form submissions 
+                      // via enter while keeping tabbing intact
+                      return false;
                   }
+
                   break;
 
                 case KEY.ESCAPE:
@@ -531,7 +544,10 @@ $.TokenList = function (input, url_or_data, settings) {
             token_list.children().each(function () {
                 var existing_token = $(this);
                 var existing_data = $.data(existing_token.get(0), "tokeninput");
-                if(existing_data && existing_data.id === item.id) {
+                if(existing_data && existing_data.id && existing_data.id === item.id) {
+                    found_existing_token = existing_token;
+                    return false;
+                } else if (existing_data && existing_data.name.toLowerCase() === item.name.toLowerCase()) {
                     found_existing_token = existing_token;
                     return false;
                 }
@@ -751,6 +767,11 @@ $.TokenList = function (input, url_or_data, settings) {
                 dropdown.html("<p>"+settings.noResultsText+"</p>");
                 show_dropdown();
             }
+            // If we're allowing new items hide the dropdown results 
+            // when there's no matching results
+            if(settings.allowNewItems) {
+                dropdown.empty();
+            }
         }
     }
 
@@ -775,7 +796,7 @@ $.TokenList = function (input, url_or_data, settings) {
     // Do a search and show the "searching" dropdown if the input is longer
     // than settings.minChars
     function do_search() {
-        var query = input_box.val();
+        var query = input_box.val().toLowerCase();
 
         if(query && query.length) {
             if(selected_token) {
